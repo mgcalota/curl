@@ -1387,10 +1387,6 @@ sub singletest_shouldrun {
         cleardir($LOGDIR);
     }
 
-    # copy test number to a global scope var, this allows
-    # testnum checking when starting test harness servers.
-    $testnumcheck = $testnum;
-
     # timestamp test preparation start
     $timeprepini{$testnum} = Time::HiRes::time();
 
@@ -1536,6 +1532,11 @@ sub singletest_startservers {
         } else {
             my $err;
             ($why, $err) = serverfortest(@what);
+            if($err == 1) {
+                # Error indicates an actual problem starting the server, so
+                # display the server logs
+                displaylogs($testnum);
+            }
         }
     }
 
