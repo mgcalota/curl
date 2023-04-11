@@ -503,8 +503,7 @@ UNITTEST CURLUcode Curl_parse_port(struct Curl_URL *u, struct dynbuf *host,
   char *portptr;
   char *hostname = Curl_dyn_ptr(host);
   /*
-   * Find the end of an IPv6 address, either on the ']' ending bracket or
-   * a percent-encoded zone index.
+   * Find the end of an IPv6 address on the ']' ending bracket.
    */
   if(hostname[0] == '[') {
     portptr = strchr(hostname, ']');
