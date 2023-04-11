@@ -637,8 +637,6 @@ static CURLUcode hostname_check(struct Curl_URL *u, char *hostname,
   return CURLUE_OK;
 }
 
-#define HOSTNAME_END(x) (((x) == '/') || ((x) == '?') || ((x) == '#'))
-
 /*
  * Handle partial IPv4 numerical addresses and different bases, like
  * '16843009', '0x7f', '0x7f.1' '0177.1.1.1' etc.
@@ -1063,7 +1061,7 @@ static CURLUcode parseurl(const char *url, CURLU *u, unsigned int flags)
     if(schemelen) {
       int i = 0;
       p = &url[schemelen + 1];
-      while(p && (*p == '/') && (i < 4)) {
+      while((*p == '/') && (i < 4)) {
         p++;
         i++;
       }
@@ -1111,10 +1109,8 @@ static CURLUcode parseurl(const char *url, CURLU *u, unsigned int flags)
     hostp = p; /* host name starts here */
 
     /* find the end of the host name + port number */
-    while(*p && !HOSTNAME_END(*p))
-      p++;
-
-    len = p - hostp;
+    len = strcspn(hostp, "/?#");
+    path = &hostp[len];
     if(len) {
       char normalized_ipv4[sizeof("255.255.255.255") + 1];
       int norm;
@@ -1196,8 +1192,6 @@ static CURLUcode parseurl(const char *url, CURLU *u, unsigned int flags)
       result = CURLUE_NO_HOST;
       goto fail;
     }
-
-    path = (char *)p;
   }
 
   fragment = strchr(path, '#');
