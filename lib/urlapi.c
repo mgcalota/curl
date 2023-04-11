@@ -563,6 +563,66 @@ UNITTEST CURLUcode Curl_parse_port(struct Curl_URL *u, struct dynbuf *host,
   return CURLUE_OK;
 }
 
+/* this assumes 'hostname' now starts with [ */
+static CURLUcode ipv6_parse(struct Curl_URL *u, char *hostname,
+                            size_t hlen) /* length of hostname */
+{
+  size_t len;
+  DEBUGASSERT(*hostname == '[');
+  if(hlen < 4) /* '[::]' is the shortest possible valid string */
+    return CURLUE_BAD_IPV6;
+  hostname++;
+  hlen -= 2;
+
+  /* only valid IPv6 letters are ok */
+  len = strspn(hostname, "0123456789abcdefABCDEF:.");
+
+  if(hlen != len) {
+    hlen = len;
+    if(hostname[len] == '%') {
+      /* this could now be '%[zone id]' */
+      char zoneid[16];
+      int i = 0;
+      char *h = &hostname[len + 1];
+      /* pass '25' if present and is a url encoded percent sign */
+      if(!strncmp(h, "25", 2) && h[2] && (h[2] != ']'))
+        h += 2;
+      while(*h && (*h != ']') && (i < 15))
+        zoneid[i++] = *h++;
+      if(!i || (']' != *h))
+        return CURLUE_BAD_IPV6;
+      zoneid[i] = 0;
+      u->zoneid = strdup(zoneid);
+      if(!u->zoneid)
+        return CURLUE_OUT_OF_MEMORY;
+      hostname[len] = ']'; /* insert end bracket */
+      hostname[len + 1] = 0; /* terminate the hostname */
+    }
+    else
+      return CURLUE_BAD_IPV6;
+    /* hostname is fine */
+  }
+
+  /* Check the IPv6 address. */
+  {
+    char dest[16]; /* fits a binary IPv6 address */
+    char norm[MAX_IPADR_LEN];
+    hostname[hlen] = 0; /* end the address there */
+    if(1 != Curl_inet_pton(AF_INET6, hostname, dest))
+      return CURLUE_BAD_IPV6;
+
+    /* check if it can be done shorter */
+    if(Curl_inet_ntop(AF_INET6, dest, norm, sizeof(norm)) &&
+       (strlen(norm) < hlen)) {
+      strcpy(hostname, norm);
+      hlen = strlen(norm);
+      hostname[hlen + 1] = 0;
+    }
+    hostname[hlen] = ']'; /* restore ending bracket */
+  }
+  return CURLUE_OK;
+}
+
 static CURLUcode hostname_check(struct Curl_URL *u, char *hostname,
                                 size_t hlen) /* length of hostname */
 {
@@ -571,60 +631,8 @@ static CURLUcode hostname_check(struct Curl_URL *u, char *hostname,
 
   if(!hlen)
     return CURLUE_NO_HOST;
-  else if(hostname[0] == '[') {
-    const char *l = "0123456789abcdefABCDEF:.";
-    if(hlen < 4) /* '[::]' is the shortest possible valid string */
-      return CURLUE_BAD_IPV6;
-    hostname++;
-    hlen -= 2;
-
-    /* only valid IPv6 letters are ok */
-    len = strspn(hostname, l);
-
-    if(hlen != len) {
-      hlen = len;
-      if(hostname[len] == '%') {
-        /* this could now be '%[zone id]' */
-        char zoneid[16];
-        int i = 0;
-        char *h = &hostname[len + 1];
-        /* pass '25' if present and is a url encoded percent sign */
-        if(!strncmp(h, "25", 2) && h[2] && (h[2] != ']'))
-          h += 2;
-        while(*h && (*h != ']') && (i < 15))
-          zoneid[i++] = *h++;
-        if(!i || (']' != *h))
-          return CURLUE_BAD_IPV6;
-        zoneid[i] = 0;
-        u->zoneid = strdup(zoneid);
-        if(!u->zoneid)
-          return CURLUE_OUT_OF_MEMORY;
-        hostname[len] = ']'; /* insert end bracket */
-        hostname[len + 1] = 0; /* terminate the hostname */
-      }
-      else
-        return CURLUE_BAD_IPV6;
-      /* hostname is fine */
-    }
-
-    /* Check the IPv6 address. */
-    {
-      char dest[16]; /* fits a binary IPv6 address */
-      char norm[MAX_IPADR_LEN];
-      hostname[hlen] = 0; /* end the address there */
-      if(1 != Curl_inet_pton(AF_INET6, hostname, dest))
-        return CURLUE_BAD_IPV6;
-
-      /* check if it can be done shorter */
-      if(Curl_inet_ntop(AF_INET6, dest, norm, sizeof(norm)) &&
-         (strlen(norm) < hlen)) {
-        strcpy(hostname, norm);
-        hlen = strlen(norm);
-        hostname[hlen + 1] = 0;
-      }
-      hostname[hlen] = ']'; /* restore ending bracket */
-    }
-  }
+  else if(hostname[0] == '[')
+    return ipv6_parse(u, hostname, hlen);
   else {
     /* letters from the second string are not ok */
     len = strcspn(hostname, " \r\n\t/:#?!@{}[]\\$\'\"^`*<>=;,+&()%");
