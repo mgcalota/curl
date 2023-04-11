@@ -1118,7 +1118,6 @@ static CURLUcode parseurl(const char *url, CURLU *u, unsigned int flags)
     hostlen = strcspn(hostp, "/?#");
     path = &hostp[hostlen];
     if(hostlen) {
-      int norm;
       /* number of bytes into the string the host name starts: */
       size_t offset = 0;
 
@@ -1134,37 +1133,36 @@ static CURLUcode parseurl(const char *url, CURLU *u, unsigned int flags)
         else
           result = Curl_parse_port(u, &host, schemelen);
       }
-      if(result)
-        goto fail;
+      if(!result) {
+        int norm = ipv4_normalize(&host);
+        switch(norm) {
+        case HOST_IPV4:
+          break;
 
-      norm = ipv4_normalize(&host);
-      switch(norm) {
-      case HOST_IPV4:
-        break;
-
-      case HOST_IPV6:
-        result = hostname_check(u, Curl_dyn_ptr(&host), Curl_dyn_len(&host));
-        break;
-
-      case HOST_NOTANIP:
-        if(junkscan(Curl_dyn_ptr(&host), flags)) {
-          result = CURLUE_BAD_HOSTNAME;
-          goto fail;
-        }
-
-        result = urldecode_host(&host);
-        if(!result)
+        case HOST_IPV6:
           result = hostname_check(u, Curl_dyn_ptr(&host), Curl_dyn_len(&host));
-        break;
+          break;
 
-      case HOST_ERROR:
-        result = CURLUE_OUT_OF_MEMORY;
-        break;
+        case HOST_NOTANIP:
+          if(junkscan(Curl_dyn_ptr(&host), flags)) {
+            result = CURLUE_BAD_HOSTNAME;
+            break;
+          }
+          result = urldecode_host(&host);
+          if(!result)
+            result = hostname_check(u, Curl_dyn_ptr(&host),
+                                    Curl_dyn_len(&host));
+          break;
 
-      case HOST_BAD:
-      default:
-        result = CURLUE_BAD_HOSTNAME; /* Bad IPv4 address even */
-        break;
+        case HOST_ERROR:
+          result = CURLUE_OUT_OF_MEMORY;
+          break;
+
+        case HOST_BAD:
+        default:
+          result = CURLUE_BAD_HOSTNAME; /* Bad IPv4 address even */
+          break;
+        }
       }
       if(result)
         goto fail;
