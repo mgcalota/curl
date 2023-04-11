@@ -1100,6 +1100,14 @@ static CURLUcode parseurl(const char *url, CURLU *u, unsigned int flags)
        */
       p = url;
     }
+    if(schemep) {
+      u->scheme = strdup(schemep);
+      if(!u->scheme) {
+        result = CURLUE_OUT_OF_MEMORY;
+        goto fail;
+      }
+    }
+
     hostp = p; /* host name starts here */
 
     /* find the end of the host name + port number */
@@ -1108,27 +1116,88 @@ static CURLUcode parseurl(const char *url, CURLU *u, unsigned int flags)
 
     len = p - hostp;
     if(len) {
+      char normalized_ipv4[sizeof("255.255.255.255") + 1];
+      int norm;
       if(Curl_dyn_addn(&host, hostp, len)) {
+        result = CURLUE_OUT_OF_MEMORY;
+        goto fail;
+      }
+
+      /*
+       * Parse the login details and strip them out of the host name.
+       */
+      result = parse_hostname_login(u, &host, flags);
+      if(!result)
+        result = Curl_parse_port(u, &host, schemelen);
+      if(result)
+        goto fail;
+
+      if(junkscan(Curl_dyn_ptr(&host), flags)) {
+        result = CURLUE_BAD_HOSTNAME;
+        goto fail;
+      }
+
+      norm = ipv4_normalize(Curl_dyn_ptr(&host),
+                            normalized_ipv4, sizeof(normalized_ipv4));
+      switch(norm) {
+      case IPV4_CLEANED:
+        Curl_dyn_reset(&host);
+        if(Curl_dyn_add(&host, normalized_ipv4))
+          result = CURLUE_OUT_OF_MEMORY;
+        break;
+
+      case IPV4_NOTANIP:
+        result = decode_host(&host);
+        if(!result)
+          result = hostname_check(u, Curl_dyn_ptr(&host), Curl_dyn_len(&host));
+        break;
+
+      case IPV4_BAD:
+      default:
+        result = CURLUE_BAD_HOSTNAME; /* Bad IPv4 address even */
+        break;
+      }
+      if(result)
+        goto fail;
+
+      if((flags & CURLU_GUESS_SCHEME) && !schemep) {
+        const char *hostname = Curl_dyn_ptr(&host);
+        /* legacy curl-style guess based on host name */
+        if(checkprefix("ftp.", hostname))
+          schemep = "ftp";
+        else if(checkprefix("dict.", hostname))
+          schemep = "dict";
+        else if(checkprefix("ldap.", hostname))
+          schemep = "ldap";
+        else if(checkprefix("imap.", hostname))
+          schemep = "imap";
+        else if(checkprefix("smtp.", hostname))
+          schemep = "smtp";
+        else if(checkprefix("pop3.", hostname))
+          schemep = "pop3";
+        else
+          schemep = "http";
+
+        u->scheme = strdup(schemep);
+        if(!u->scheme) {
+          result = CURLUE_OUT_OF_MEMORY;
+          goto fail;
+        }
+      }
+    }
+    else if(flags & CURLU_NO_AUTHORITY) {
+      /* allowed to be empty. */
+      if(Curl_dyn_add(&host, "")) {
         result = CURLUE_OUT_OF_MEMORY;
         goto fail;
       }
     }
     else {
-      if(!(flags & CURLU_NO_AUTHORITY)) {
-        result = CURLUE_NO_HOST;
-        goto fail;
-      }
+      result = CURLUE_NO_HOST;
+      goto fail;
     }
 
     path = (char *)p;
-
-    if(schemep) {
-      u->scheme = strdup(schemep);
-      if(!u->scheme) {
-        result = CURLUE_OUT_OF_MEMORY;
-        goto fail;
-      }
-    }
   }
 
   fragment = strchr(path, '#');
@@ -1247,80 +1316,6 @@ static CURLUcode parseurl(const char *url, CURLU *u, unsigned int flags)
         free(u->path);
         u->path = dedot;
       }
-    }
-  }
-
-  if(Curl_dyn_len(&host)) {
-    char normalized_ipv4[sizeof("255.255.255.255") + 1];
-    int norm;
-
-    /*
-     * Parse the login details and strip them out of the host name.
-     */
-    result = parse_hostname_login(u, &host, flags);
-    if(!result)
-      result = Curl_parse_port(u, &host, schemelen);
-    if(result)
-      goto fail;
-
-    if(junkscan(Curl_dyn_ptr(&host), flags)) {
-      result = CURLUE_BAD_HOSTNAME;
-      goto fail;
-    }
-
-    norm = ipv4_normalize(Curl_dyn_ptr(&host),
-                          normalized_ipv4, sizeof(normalized_ipv4));
-    switch(norm) {
-    case IPV4_CLEANED:
-      Curl_dyn_reset(&host);
-      if(Curl_dyn_add(&host, normalized_ipv4))
-        result = CURLUE_OUT_OF_MEMORY;
-      break;
-
-    case IPV4_NOTANIP:
-      result = decode_host(&host);
-      if(!result)
-        result = hostname_check(u, Curl_dyn_ptr(&host), Curl_dyn_len(&host));
-      break;
-
-    case IPV4_BAD:
-    default:
-      result = CURLUE_BAD_HOSTNAME; /* Bad IPv4 address even */
-      break;
-    }
-    if(result)
-      goto fail;
-
-    if((flags & CURLU_GUESS_SCHEME) && !schemep) {
-      const char *hostname = Curl_dyn_ptr(&host);
-      /* legacy curl-style guess based on host name */
-      if(checkprefix("ftp.", hostname))
-        schemep = "ftp";
-      else if(checkprefix("dict.", hostname))
-        schemep = "dict";
-      else if(checkprefix("ldap.", hostname))
-        schemep = "ldap";
-      else if(checkprefix("imap.", hostname))
-        schemep = "imap";
-      else if(checkprefix("smtp.", hostname))
-        schemep = "smtp";
-      else if(checkprefix("pop3.", hostname))
-        schemep = "pop3";
-      else
-        schemep = "http";
-
-      u->scheme = strdup(schemep);
-      if(!u->scheme) {
-        result = CURLUE_OUT_OF_MEMORY;
-        goto fail;
-      }
-    }
-  }
-  else if(flags & CURLU_NO_AUTHORITY) {
-    /* allowed to be empty. */
-    if(Curl_dyn_add(&host, "")) {
-      result = CURLUE_OUT_OF_MEMORY;
-      goto fail;
     }
   }
 
