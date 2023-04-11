@@ -525,7 +525,6 @@ UNITTEST CURLUcode Curl_parse_port(struct Curl_URL *u, struct dynbuf *host,
   if(portptr) {
     char *rest;
     long port;
-    char portbuf[7];
     size_t keep = portptr - hostname;
 
     /* Browser behavior adaptation. If there's a colon with no digits after,
@@ -552,10 +551,9 @@ UNITTEST CURLUcode Curl_parse_port(struct Curl_URL *u, struct dynbuf *host,
       return CURLUE_BAD_PORT_NUMBER;
 
     *rest = 0;
-    /* generate a new port number string to get rid of leading zeroes etc */
-    msnprintf(portbuf, sizeof(portbuf), "%ld", port);
     u->portnum = port;
-    u->port = strdup(portbuf);
+    /* generate a new port number string to get rid of leading zeroes etc */
+    u->port = aprintf("%ld", port);
     if(!u->port)
       return CURLUE_OUT_OF_MEMORY;
   }
