@@ -1054,13 +1054,12 @@ static CURLUcode parseurl(const char *url, CURLU *u, unsigned int flags)
   }
   else {
     /* clear path */
-    const char *p;
     const char *hostp;
-    size_t len;
+    size_t hostlen;
 
     if(schemelen) {
       int i = 0;
-      p = &url[schemelen + 1];
+      const char *p = &url[schemelen + 1];
       while((*p == '/') && (i < 4)) {
         p++;
         i++;
@@ -1073,7 +1072,7 @@ static CURLUcode parseurl(const char *url, CURLU *u, unsigned int flags)
         goto fail;
       }
 
-      if((i < 1) || (i>3)) {
+      if((i < 1) || (i > 3)) {
         /* less than one or more than three slashes */
         result = CURLUE_BAD_SLASHES;
         goto fail;
@@ -1109,12 +1108,12 @@ static CURLUcode parseurl(const char *url, CURLU *u, unsigned int flags)
     }
 
     /* find the end of the host name + port number */
-    len = strcspn(hostp, "/?#");
-    path = &hostp[len];
-    if(len) {
+    hostlen = strcspn(hostp, "/?#");
+    path = &hostp[hostlen];
+    if(hostlen) {
       char normalized_ipv4[sizeof("255.255.255.255") + 1];
       int norm;
-      if(Curl_dyn_addn(&host, hostp, len)) {
+      if(Curl_dyn_addn(&host, hostp, hostlen)) {
         result = CURLUE_OUT_OF_MEMORY;
         goto fail;
       }
