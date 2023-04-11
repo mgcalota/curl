@@ -1148,7 +1148,7 @@ static CURLUcode parseurl(const char *url, CURLU *u, unsigned int flags)
           break;
 
         case HOST_IPV6:
-          result = hostname_check(u, Curl_dyn_ptr(&host), Curl_dyn_len(&host));
+          result = ipv6_parse(u, Curl_dyn_ptr(&host), Curl_dyn_len(&host));
           break;
 
         case HOST_NAME:
