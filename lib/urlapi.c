@@ -1129,11 +1129,6 @@ static CURLUcode parseurl(const char *url, CURLU *u, unsigned int flags)
       if(result)
         goto fail;
 
-      if(junkscan(Curl_dyn_ptr(&host), flags)) {
-        result = CURLUE_BAD_HOSTNAME;
-        goto fail;
-      }
-
       norm = ipv4_normalize(Curl_dyn_ptr(&host),
                             normalized_ipv4, sizeof(normalized_ipv4));
       switch(norm) {
@@ -1144,6 +1139,11 @@ static CURLUcode parseurl(const char *url, CURLU *u, unsigned int flags)
         break;
 
       case IPV4_NOTANIP:
+        if(junkscan(Curl_dyn_ptr(&host), flags)) {
+          result = CURLUE_BAD_HOSTNAME;
+          goto fail;
+        }
+
         result = decode_host(&host);
         if(!result)
           result = hostname_check(u, Curl_dyn_ptr(&host), Curl_dyn_len(&host));
