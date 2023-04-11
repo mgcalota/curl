@@ -1936,7 +1936,7 @@ CURLUcode curl_url_set(CURLU *u, CURLUPart what,
         /* Skip hostname check, it's allowed to be empty. */
       }
       else {
-        if(hostname_check(u, (char *)newp, n)) {
+        if(!n || hostname_check(u, (char *)newp, n)) {
           free((char *)newp);
           return CURLUE_BAD_HOSTNAME;
         }
