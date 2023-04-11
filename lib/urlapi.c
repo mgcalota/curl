@@ -651,7 +651,7 @@ static CURLUcode hostname_check(struct Curl_URL *u, char *hostname,
 #define HOST_ERROR   -1 /* out of memory */
 #define HOST_BAD     -2 /* bad IPv4 adddress */
 
-#define HOST_NOTANIP 1
+#define HOST_NAME    1
 #define HOST_IPV4    2
 #define HOST_IPV6    3
 
@@ -671,7 +671,7 @@ static int ipv4_normalize(struct dynbuf *host)
     unsigned long l;
     if(!ISDIGIT(*c))
       /* most importantly this doesn't allow a leading plus or minus */
-      return n ? HOST_BAD :HOST_NOTANIP;
+      return n ? HOST_BAD : HOST_NAME;
     l = strtoul(c, &endp, 0);
 
     parts[n] = l;
@@ -690,7 +690,7 @@ static int ipv4_normalize(struct dynbuf *host)
       break;
 
     default:
-      return n ? HOST_BAD : HOST_NOTANIP;
+      return n ? HOST_BAD : HOST_NAME;
     }
 
     /* overflow */
@@ -1143,7 +1143,7 @@ static CURLUcode parseurl(const char *url, CURLU *u, unsigned int flags)
           result = hostname_check(u, Curl_dyn_ptr(&host), Curl_dyn_len(&host));
           break;
 
-        case HOST_NOTANIP:
+        case HOST_NAME:
           if(junkscan(Curl_dyn_ptr(&host), flags)) {
             result = CURLUE_BAD_HOSTNAME;
             break;
