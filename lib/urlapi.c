@@ -1082,6 +1082,7 @@ static CURLUcode parseurl(const char *url, CURLU *u, unsigned int flags)
         result = CURLUE_BAD_SCHEME;
         goto fail;
       }
+      hostp = p; /* host name starts here */
     }
     else {
       /* no scheme! */
@@ -1096,8 +1097,9 @@ static CURLUcode parseurl(const char *url, CURLU *u, unsigned int flags)
       /*
        * The URL was badly formatted, let's try without scheme specified.
        */
-      p = url;
+      hostp = url;
     }
+
     if(schemep) {
       u->scheme = strdup(schemep);
       if(!u->scheme) {
@@ -1105,8 +1107,6 @@ static CURLUcode parseurl(const char *url, CURLU *u, unsigned int flags)
         goto fail;
       }
     }
-
-    hostp = p; /* host name starts here */
 
     /* find the end of the host name + port number */
     len = strcspn(hostp, "/?#");
