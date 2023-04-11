@@ -649,6 +649,7 @@ static CURLUcode hostname_check(struct Curl_URL *u, char *hostname,
 #define IPV4_NOTANIP 1
 #define IPV4_BAD     2
 #define IPV4_CLEANED 3
+#define IPV4_IPV6    4
 
 static int ipv4_normalize(const char *hostname, char *outp, size_t olen)
 {
@@ -656,6 +657,9 @@ static int ipv4_normalize(const char *hostname, char *outp, size_t olen)
   int n = 0;
   const char *c = hostname;
   unsigned long parts[4] = {0, 0, 0, 0};
+
+  if(*hostname == '[')
+    return IPV4_IPV6;
 
   while(!done) {
     char *endp;
@@ -729,13 +733,10 @@ static int ipv4_normalize(const char *hostname, char *outp, size_t olen)
 }
 
 /* if necessary, replace the host content with a URL decoded version */
-static CURLUcode decode_host(struct dynbuf *host)
+static CURLUcode urldecode_host(struct dynbuf *host)
 {
   char *per = NULL;
   const char *hostname = Curl_dyn_ptr(host);
-  if(hostname[0] == '[')
-    /* only decode if not an ipv6 numerical */
-    return CURLUE_OK;
   per = strchr(hostname, '%');
   if(!per)
     /* nothing to decode */
@@ -1138,13 +1139,17 @@ static CURLUcode parseurl(const char *url, CURLU *u, unsigned int flags)
           result = CURLUE_OUT_OF_MEMORY;
         break;
 
+      case IPV4_IPV6:
+        result = hostname_check(u, Curl_dyn_ptr(&host), Curl_dyn_len(&host));
+        break;
+
       case IPV4_NOTANIP:
         if(junkscan(Curl_dyn_ptr(&host), flags)) {
           result = CURLUE_BAD_HOSTNAME;
           goto fail;
         }
 
-        result = decode_host(&host);
+        result = urldecode_host(&host);
         if(!result)
           result = hostname_check(u, Curl_dyn_ptr(&host), Curl_dyn_len(&host));
         break;
