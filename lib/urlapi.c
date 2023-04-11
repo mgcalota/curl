@@ -406,8 +406,9 @@ static bool junkscan(const char *part, unsigned int flags)
  *
  */
 static CURLUcode parse_hostname_login(struct Curl_URL *u,
-                                      struct dynbuf *host,
-                                      unsigned int flags)
+                                      const char *login,
+                                      unsigned int flags,
+                                      size_t *offset) /* to the host name */
 {
   CURLUcode result = CURLUE_OK;
   CURLcode ccode;
@@ -423,8 +424,6 @@ static CURLUcode parse_hostname_login(struct Curl_URL *u,
    *
    * We need somewhere to put the embedded details, so do that first.
    */
-
-  char *login = Curl_dyn_ptr(host);
   char *ptr;
 
   DEBUGASSERT(login);
@@ -482,11 +481,10 @@ static CURLUcode parse_hostname_login(struct Curl_URL *u,
     u->options = optionsp;
   }
 
-  /* move the name to the start of the host buffer */
-  if(Curl_dyn_tail(host, strlen(ptr)))
-    return CURLUE_OUT_OF_MEMORY;
-
+  /* the host name starts at this offset */
+  *offset = ptr - login;
   return CURLUE_OK;
+
   out:
 
   free(userp);
@@ -1113,17 +1111,21 @@ static CURLUcode parseurl(const char *url, CURLU *u, unsigned int flags)
     if(hostlen) {
       char normalized_ipv4[sizeof("255.255.255.255") + 1];
       int norm;
-      if(Curl_dyn_addn(&host, hostp, hostlen)) {
-        result = CURLUE_OUT_OF_MEMORY;
-        goto fail;
-      }
+      /* number of bytes into the string the host name starts: */
+      size_t offset = 0;
 
       /*
        * Parse the login details and strip them out of the host name.
        */
-      result = parse_hostname_login(u, &host, flags);
-      if(!result)
-        result = Curl_parse_port(u, &host, schemelen);
+      result = parse_hostname_login(u, hostp, flags, &offset);
+      if(!result) {
+        hostp += offset;
+        hostlen -= offset;
+        if(Curl_dyn_addn(&host, hostp, hostlen))
+          result = CURLUE_OUT_OF_MEMORY;
+        else
+          result = Curl_parse_port(u, &host, schemelen);
+      }
       if(result)
         goto fail;
 
