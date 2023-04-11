@@ -569,7 +569,7 @@ static CURLUcode hostname_check(struct Curl_URL *u, char *hostname,
   size_t len;
   DEBUGASSERT(hostname);
 
-  if(!hostname[0])
+  if(!hlen)
     return CURLUE_NO_HOST;
   else if(hostname[0] == '[') {
     const char *l = "0123456789abcdefABCDEF:.";
